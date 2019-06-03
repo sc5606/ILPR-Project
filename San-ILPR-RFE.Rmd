@@ -1,0 +1,797 @@
+---
+title: "HarvardX: PH125.9x  \n  Data Science - Chose Your Own Project Submission:  \n  Indian Liver Patient Records (ILPR)"
+author: "Santhosh Channa"
+date: "6/01/2019"
+output: 
+  pdf_document: 
+    fig_caption: yes
+    fig_height: 3.5
+    fig_width: 5
+    number_sections: yes
+    toc: yes
+    toc_depth: 4
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Overview
+
+
+This report is part of the capstone project of the EdX course ‘HarvardX: PH125.9x Data Science: Chose Your Own’. The goal is to demonstrate that the student acquired skills with the R programming language in the field of datascience to actually solve real world problems.
+
+## Introduction
+
+This report is for ILPR - Indian Liver Patienr Rercords.
+
+Patients with Liver disease have been continuously increasing because of excessive consumption of alcohol, inhale of harmful gases, intake of contaminated food, pickles and drugs. This dataset was used to evaluate prediction algorithms in an effort to reduce burden on doctors.
+
+
+## Content
+
+
+This data set contains 416 liver patient records and 167 non liver patient records collected from North East of Andhra Pradesh, India. The "Dataset" column is a class label used to divide groups into liver patient (liver disease) or not (no disease). This data set contains 441 male patient records and 142 female patient records.
+
+Any patient whose age exceeded 89 is listed as being of age "90".
+
+**Columns in the dataset:**
+```{r table2, echo=FALSE, message=FALSE, warnings=FALSE, results='asis'}
+tabl <- " 
+| Column                        | Description                        |
+|-------------------------------|:----------------------------------:|
+| Age 				| Age of the patients                |
+| Gender 			| Sex of the patients                |
+| Total_Bilirubin		| Total Billirubin in mg/dL          |
+| Direct_Bilirubin		| Conjugated Billirubin in mg/dL     |
+| Alkaline_Phosphotase		| ALP in IU/L                        |
+| Alamine_Aminotransferase	| ALT in IU/L                        |
+| Aspartate_Aminotransferase	| AST in IU/L                        |
+| Total_ProtiensTotal 		| Proteins g/dL                      |
+| Albumin			| Albumin in g/dL                    |
+| Albumin_and_Globulin_Ratio	| A/G ratio                          |
+| Dataset			| (patient has liver disease or not) |
+"
+cat(tabl) # output the table in a format good for HTML/PDF/docx conversion
+```
+
+```{r,echo=FALSE,message=FALSE,warning=FALSE}
+require(knitr)
+# Set so that long lines in R will be wrapped:
+opts_chunk$set(tidy.opts=list(width.cutoff=80),tidy=TRUE)
+```
+
+<!-- above didnt work so trying below --> 
+
+Finally, the best resulting model will be used to predict the movie ratings.
+
+## Dataset
+
+
+This dataset was downloaded from the UCI ML Repository:
+
+Lichman, M. (2013). UCI Machine Learning Repository [http://archive.ics.uci.edu/ml]. Irvine, CA: University of California, School of Information and Computer Science.
+\
+
+
+```{r, echo = TRUE, message = FALSE, warning = FALSE, eval = TRUE}
+# Install and load libraries required
+if(!require(psych)) install.packages("psych")
+if(!require(randomForest)) install.packages("randomForest")
+if(!require(caret)) install.packages("caret")
+if(!require("pROC")) install.packages("pROC")
+if(!require(corrplot)) install.packages("corrplot")
+if(!require(tidyverse)) install.packages("tidyverse")
+if(!require(devtools)) install.packages("devtools")
+if(!require(sqldf)) install.packages("sqldf")
+library(psych)
+library(caret)
+library('pROC')
+library(tidyverse)
+library(caret)
+library(randomForest)
+library(ggplot2)
+library(dplyr)
+library(corrplot)
+library(rpart)
+library(sqldf)
+library(devtools)
+devtools::install_github("collectivemedia/tictoc")
+library(tictoc)
+
+# Read the dataset 
+tic("Reading indian_liver_patient.csv data...")
+setwd("/Users/schanna/Documents/Me/edX/ILPR-Project/ILPR-Project")
+
+liver_df <- read.csv("data/indian_liver_patient.csv")
+toc()
+
+```
+
+
+# Data Analysis
+
+
+## Overview of dataset
+
+\
+
+Let us glance through the data set we just created to make sure it matches with the numbers mentioned in the **content** section
+
+\
+
+```{r, echo = TRUE}
+# Information about data set
+class(liver_df)
+glimpse(liver_df)
+
+```
+
+\
+
+**Summary information of edx dataset:**
+
+\
+
+```{r, echo = TRUE}
+summary(liver_df)
+```
+
+
+
+
+## Understanding the given dataset and modyfing where necessary
+
+\
+
+**Rename the column "Dataset" to "Diseased" for better representation**
+
+\
+
+```{r, echo = TRUE}
+colnames(liver_df)[colnames(liver_df)=='Dataset'] = 'Diseased'
+colnames(liver_df)
+```
+
+\
+
+**Showing Gender ratio in the data set:**
+
+\
+
+```{r, echo = TRUE}
+tic("Gender Ratio")
+table(liver_df$Gender)
+toc()
+```
+\
+
+**Change values of Diseased to "0" and "1" from "1" and "2":**
+
+```{r, echo = TRUE}
+
+table(liver_df$Diseased)
+liver_df$Diseased <- as.numeric(ifelse(liver_df$Diseased == 2, 1, 0))
+table(liver_df$Diseased)
+
+# Convert Diseased to a factor variable
+class(liver_df$Diseased)
+liver_df$Diseased <- as.factor(liver_df$Diseased)
+class(liver_df$Diseased)
+```
+
+\
+
+**Remove records with NA values in column(s):**
+
+\
+
+```{r, echo = TRUE}
+print("Dimensions of dataset before removing NA's")
+dim(liver_df)
+tic("Remove records with NA values in column(s)")
+colSums(sapply(liver_df, is.na))
+liver_df = na.omit(liver_df)
+print("Dimensions of dataset after removing NA's")
+dim(liver_df)
+toc()
+
+```
+
+
+## Visualyzing the data
+
+**Gender Distribution ...**
+
+\
+
+
+```{r, echo = TRUE, fig.height = 4.5, fig.width = 6}
+ggplot(liver_df, aes(factor(Gender))) + 
+geom_bar(width = 0.4, aes(fill=factor(Gender))) + 
+geom_text(stat = "count", check_overlap = TRUE, aes( label = ..count..),
+          position = position_stack(vjust = 0.5)) +
+labs(x = "Gender", y = "$ of Records", title = "Gender Distribution") +
+theme(plot.title = element_text(hjust = 0.5)) 
+```
+
+\
+
+**Diseased distribution among Gender ...**
+
+\
+
+```{r, echo = TRUE}
+print("Using sqldf")
+sqldf("select count(1), Gender, Diseased from liver_df 
+        group by Gender, Diseased order by 2")
+
+table(liver_df$Diseased, liver_df$Gender)
+
+ggplot(liver_df, aes(factor(Gender), fill=factor(Diseased))) + 
+geom_bar(width = 0.4) + 
+geom_text(aes(label = ..count..), stat="count", 
+position = position_stack(0.5)) + 
+labs(x = "Gender", y = "$ of Records/Disased", 
+     title = "Diseased distribution among Gender") +
+theme(plot.title = element_text(hjust = 0.5)) 
+
+```
+
+\
+
+**Plot by Age and Gender ...**
+
+\
+
+```{r, echo = TRUE}
+ggplot(data = liver_df, aes(Age, Diseased)) + 
+geom_bar(stat = "identity", aes(fill = Gender)) +
+ggtitle("Diseased distribution by Age and Gender") +
+theme(plot.title = element_text(hjust = 0.5)) 
+```
+
+\
+
+The graphs below will help us to understand the distribution of data points within each variable forming solid foundation for the analysis to come. In the graphs we can see how the data is extremely left or right skewed.
+
+This aided in centering the data better, but still they are not completely normal, so it is important to have realistic expectations about the linear predictive power of individual variables within the model as a whole.
+
+\
+
+**Histogram of Age Distribution :**
+
+\
+
+```{r, echo = TRUE}
+describe(liver_df$Age)
+
+hist(liver_df$Age, main = "Age Distribution", font.main = 3, col = "orange", 
+     xlab = "Age", ylab = "Fequency") 
+```
+
+\
+
+**Total Bilirubin**
+
+\
+
+```{r, echo = TRUE}
+describe(liver_df$Total_Bilirubin)
+
+hist(log(liver_df$Total_Bilirubin), 
+     main = "Total Bilirubin Distribution", font.main = 3, col = "orange", 
+     xlab = "Total Bilirubin", ylab = "Fequency") 
+
+```
+
+\
+
+**Direct Bilirubin**
+
+\
+
+```{r, echo = TRUE}
+describe(liver_df$Direct_Bilirubin)
+hist(log(liver_df$Direct_Bilirubin), 
+     main = "Direct Bilirubin Distribution", font.main = 3, col = "orange", 
+     xlab = "Direct Bilirubin", ylab = "Fequency") 
+
+```
+
+\
+
+**Alkaline Phosphotase**
+
+\
+
+```{r, echo = TRUE}
+describe(liver_df$Alkaline_Phosphotase)
+hist(log(liver_df$Alkaline_Phosphotase), 
+     main = "Alkaline Phosphotase Distribution", font.main = 3, col = "orange", 
+     xlab = "Alkaline Phosphotase", ylab = "Fequency") 
+
+```
+
+\
+
+**Alamine Aminotransferase**
+
+\
+
+```{r, echo = TRUE}
+describe(liver_df$Alamine_Aminotransferase)
+
+hist(log(liver_df$Alamine_Aminotransferase), 
+     main = "Alamine Aminotransferase Distribution", font.main = 3, col = "orange", 
+     xlab = "Alamine Aminotransferase", ylab = "Fequency") 
+```
+
+\
+
+**Aspartate Aminotransferase**
+
+\
+
+```{r, echo = TRUE}
+describe(liver_df$Aspartate_Aminotransferase)
+
+hist(log(liver_df$Aspartate_Aminotransferase), 
+     main = "Aspartate Aminotransferase Distribution", font.main = 3, col = "orange",
+     xlab = "Aspartate Aminotransferase", ylab = "Fequency")
+```
+
+\
+
+**Total Protiens**
+
+\
+
+```{r, echo = TRUE}
+describe(liver_df$Total_Protiens)
+
+hist(log(liver_df$Total_Protiens), main = "Total Protiens Distribution",
+     font.main = 3, col = "orange", xlab = "Total Protiens", ylab = "Fequency") 
+```
+
+\
+
+**Albumin**
+
+\
+
+```{r, echo = TRUE}
+describe(liver_df$Albumin)
+
+hist(log(liver_df$Albumin), main = "Albumin Distribution", font.main = 3,
+     col = "orange", xlab = "Age", ylab = "Fequency") 
+```
+
+\
+
+**Albumin and Globulin Ratio**
+
+\
+
+
+```{r, echo = TRUE}
+describe(liver_df$Albumin_and_Globulin_Ratio)
+
+hist(log(liver_df$Albumin_and_Globulin_Ratio), 
+     main = "Albumin and Globulin Ratio Distribution", font.main = 3,
+     col = "orange", xlab = "Albumin and Globulin Ratio", ylab = "Fequency") 
+```
+
+\
+
+
+**Creating Correlation Matrix**
+
+\
+
+
+```{r, echo = TRUE}
+non_pred_cols <- c('Gender', 'Diseased')
+correlationMatrix <- cor(liver_df[, !(names(liver_df) %in% non_pred_cols)])
+corrplot(correlationMatrix)
+```
+
+
+## Modelling Approach
+
+
+### Feature Selection
+
+\
+
+Automatic feature selection methods can be used to build many models with different subsets of a dataset and identify those attributes that are and are not required to build an accurate model.
+
+A popular automatic method for feature selection provided by the caret R package is called Recursive Feature Elimination or RFE.
+
+We use a RFE (Recursive Feature Elimination) to remove the unnecessary features.
+
+\
+
+```{r, echo = TRUE}
+set.seed(7)
+# define the control using a random forest selection function
+rfeControl <- rfeControl(functions=rfFuncs, method="cv", number=10)
+# run the RFE algorithm
+results <- rfe(liver_df[,1:10], liver_df[,11],sizes = c(1:10), rfeControl=rfeControl)
+#print(results)
+
+# list the chosen features
+predictors <- predictors(results)
+print(predictors)
+# plot the results
+plot(results, type=c("g", "o"))
+
+# Resize the original dataset by removing others which are not listed from predictors
+
+subset_liver_df <- liver_df[,c(predictors,"Diseased")]
+colnames(subset_liver_df)
+
+```
+
+\
+
+We create a sample data using a random sample, the seed has to be set to generate same indices everytime. Below we will generate our train and test data set samples using a 70/30 split.
+
+\
+
+```{r, echo = TRUE}
+smp_size <- floor(0.7 * nrow(subset_liver_df))
+set.seed(9)
+train_ind <- sample(seq_len(nrow(subset_liver_df)), size = smp_size)
+train <- subset_liver_df[train_ind, ]
+print("Train Data set Dimensions:")
+dim(train)
+table(train$Diseased)
+
+test = subset_liver_df[-train_ind, ]
+print("Test Data set Dimensions:")
+dim(test)
+table(test$Diseased)
+
+```
+
+
+### Model#1: GLM - Generalized Liner Model
+
+
+\
+
+```{r, echo = TRUE}
+tic("GLM Model...")
+fit_glm <- suppressWarnings(glm(Diseased ~ ., data = train, family = "binomial"))
+p_hat_glm <- predict(fit_glm, test)
+y_hat_glm <- factor(ifelse(p_hat_glm > 0.5, 1, 0))
+glm_acc <- 
+suppressWarnings(confusionMatrix(data = y_hat_glm, reference = test$Diseased)$overall["Accuracy"])
+print(glm_acc)
+cat("\n")
+# Persist the accuracy in accuracy_results
+accuracy_results <- 
+  suppressWarnings(
+    data_frame(
+      Model = "Model#1: GLM(Generalized Liner Model) Predictions",
+      Accuracy = glm_acc))
+toc()
+```
+
+\
+
+**ROC Curve for the GLM Model**
+
+\
+
+```{r, echo = TRUE}
+glm_pred_prob <- as.data.frame(predict(fit_glm, test, type = "response"))
+plot(roc(test$Diseased, 
+         glm_pred_prob$`predict(fit_glm, test, type = "response")`), 
+     main = "GLM ROC Curve")
+print(roc(test$Diseased, glm_pred_prob$`predict(fit_glm, test, type = "response")`))
+```
+
+
+### Model#2 RPART
+
+\
+
+```{r, echo = TRUE, fig.height = 5, fig.width = 7}
+tic("RPART Model...")
+xfit <- rpart(Diseased ~., data = subset_liver_df)
+plot(xfit, margin = 0.1)
+text(xfit, cex = 0.75)
+```
+```{r, echo = TRUE}
+train_rpart <- train(Diseased ~ ., method = "rpart", 
+                     tuneGrid = data.frame(cp = seq(0.0, 0.1, len = 25)), data = train)
+plot(train_rpart)
+rpart_acc <- confusionMatrix(predict(train_rpart, test),
+                             test$Diseased)$overall["Accuracy"]
+print(rpart_acc)
+# Persist prediction results
+accuracy_results <- bind_rows(accuracy_results,
+  data_frame(Model = "Model#2: RPART Predictions", 
+  Accuracy = rpart_acc))
+toc()
+```
+
+\
+
+**ROC Curve for RPART**
+
+\
+
+```{r, echo = TRUE}
+rpart_pred_prob <- as.data.frame(predict(train_rpart, test, 
+                                         type = "prob"))
+plot(roc(test$Diseased, rpart_pred_prob$`0`), main = "RPART ROC Curve")
+print(roc(test$Diseased, rpart_pred_prob$`0`))
+```
+
+
+### Model#3 Random Forest default
+
+\
+
+Random Forest can be tune up using Random Search or Grid Search. We use the Grid Search to try various combinations of parameters using Cross-Validation.
+
+\
+
+```{r, echo = TRUE}
+# First we create a K-fold cross-validation of 10 folds:
+tic("Random Forest Default Model...")
+trControl <- trainControl(method = "cv",
+    number = 10,
+    search = "grid")
+
+# Then we run the model for the default (or not optimized) Random Forest version:
+
+set.seed(1234)
+rf_default <- train(Diseased~.,
+    data = train,
+    method = "rf",
+    metric = "Accuracy",
+    trControl = trControl)
+print(rf_default)
+
+# Evaluate the model
+default_prediction <- predict(rf_default,test)
+default_acc <- confusionMatrix(default_prediction, test$Diseased)$overall["Accuracy"]
+print(default_acc)
+
+# Persist prediction results
+accuracy_results <- bind_rows(accuracy_results,
+  data_frame(Model = "Model#3: Default Predictions", 
+  Accuracy = default_acc))
+toc()
+```
+
+\
+
+**ROC Curve for Random Forest Default Model**
+
+\
+
+```{r, echo = TRUE}
+default_pred_prob <- as.data.frame(predict(rf_default, test, type = "prob"))
+plot(roc(test$Diseased, default_pred_prob$`0`), main = "Default ROC Curve")
+print(roc(test$Diseased, default_pred_prob$`0`))
+```
+
+
+### Model#4 Hyperparameter Optimization -Best MTRY
+
+\
+
+```{r, echo = TRUE}
+tic("MTRY Model...")
+set.seed(1234)
+tuneGrid <- expand.grid(.mtry = c(3: 10))
+rf_mtry <- suppressWarnings(train(Diseased~.,
+    data = train,
+    method = "rf",
+    metric = "Accuracy",
+    tuneGrid = tuneGrid,
+    trControl = trControl,
+    importance = TRUE,
+    nodesize = 14,
+    ntree = 300))
+print(rf_mtry)
+best_mtry <- rf_mtry$bestTune$mtry 
+max(rf_mtry$results$Accuracy)
+
+# Evaluate the model
+
+mtry_prediction <- predict(rf_mtry, test)
+mtry_acc <- confusionMatrix(mtry_prediction, test$Diseased)$overall["Accuracy"]
+print(mtry_acc)
+
+# Append to accuracy_results table
+accuracy_results <- bind_rows(accuracy_results, 
+  data_frame(Model = "Model#4: Default + MTRY Predictions", 
+             Accuracy = mtry_acc))
+toc()
+```
+
+\
+
+**ROC Curve for MTRY**
+
+\
+
+```{r, echo = TRUE}
+mtry_pred_prob <- as.data.frame(predict(rf_mtry, test, type = "prob"))
+plot(roc(test$Diseased, mtry_pred_prob$`0`), main = "MTRY ROC Curve")
+print(roc(test$Diseased, mtry_pred_prob$`0`))
+```
+
+
+### Model#5 Best maxnodes
+
+\
+
+This parameter sets the maximum of the terminal nodes in the forest For this parameter will need to create a list of values and then summarize the results:
+
+\
+
+```{r, echo = TRUE}
+tic("Maxnodes Model...")
+#List to store the values
+store_maxnode <- list()
+#test only with the best mtry parameter already obtained
+tuneGrid <- expand.grid(.mtry = best_mtry)
+#iterate over different values
+suppressWarnings(for (maxnodes in c(20: 30)) {
+    set.seed(1234)
+    rf_maxnode <- train(Diseased~.,
+        data = train,
+        method = "rf",
+        metric = "Accuracy",
+        tuneGrid = tuneGrid,
+        trControl = trControl,
+        importance = TRUE,
+        nodesize = 14,
+        maxnodes = maxnodes,
+        ntree = 300)
+    current_iteration <- toString(maxnodes)
+    store_maxnode[[current_iteration]] <- rf_maxnode
+})
+results_maxnode <-  resamples(store_maxnode)
+summary(results_maxnode)
+
+# Evaluate the model
+maxnode_prediction <- predict(rf_maxnode,test)
+
+maxnode_acc <- confusionMatrix(maxnode_prediction, test$Diseased)$overall["Accuracy"]
+print(maxnode_acc)
+
+# Append to accuracy_results table
+accuracy_results <- bind_rows(accuracy_results, 
+  data_frame(Model = "Model#5: Default + MTRY + MaxNodes Predictions", 
+             Accuracy = maxnode_acc))
+
+toc()
+```
+
+\
+
+**ROC Curve for MaxNodes**
+
+\
+
+```{r, echo = TRUE}
+maxnode_pred_prob <- as.data.frame(predict(rf_maxnode, test, type = "prob"))
+plot(roc(test$Diseased, maxnode_pred_prob$`0`), main = "MaxNodes ROC Curve")
+print(roc(test$Diseased, maxnode_pred_prob$`0`))
+
+```
+
+
+### Model#6 Best ntrees
+This parameter is the number of trees of the ensamble. Same as maxnodes we need to iterate between various ntress values and summarize in the end. We use the already obtained values for mtry and maxnodes.
+
+\
+
+```{r, echo = TRUE}
+tic("Best ntrees Model...")
+store_maxtrees <- list()
+suppressWarnings(for (ntree in c(250, 300, 350, 400, 450, 500, 550, 600, 800, 1000, 2000)) {
+    set.seed(1234)
+    rf_maxtrees <- train(Diseased~.,
+        data = train,
+        method = "rf",
+        metric = "Accuracy",
+        tuneGrid = tuneGrid,
+        trControl = trControl,
+        importance = TRUE,
+        nodesize = 14,
+        maxnodes = 25,
+        ntree = ntree)
+    key <- toString(ntree)
+    store_maxtrees[[key]] <- rf_maxtrees
+})
+results_tree <- resamples(store_maxtrees)
+summary(results_tree)
+
+# Evaluate the model
+maxtree_prediction <-predict(rf_maxtrees,test)
+
+maxtree_acc <- confusionMatrix(maxtree_prediction, test$Diseased)$overall["Accuracy"]
+print(maxtree_acc)
+
+# Append to accuracy_results table
+accuracy_results <- bind_rows(accuracy_results, 
+  data_frame(Model = "Model#6: Default + MTRY + MaxNodes + N-Trees Predictions",
+             Accuracy = maxtree_acc
+            ))
+toc()
+```
+
+\
+
+**ROC Curve for ntrees**
+
+\
+
+```{r, echo = TRUE}
+maxtree_pred_prob <- as.data.frame(predict(rf_maxtrees, test, type = "prob"))
+plot(roc(test$Diseased, maxtree_pred_prob$`0`), main = "MaxTrees ROC Curve")
+print(roc(test$Diseased, maxtree_pred_prob$`0`))
+```
+
+**ROC Curve for all the models**
+
+```{r, echo = TRUE, fig.height = 5, fig.width = 7}
+roc_glm = suppressWarnings(roc(test$Diseased, glm_pred_prob$`predict(fit_glm, test, type = "response")`))
+roc_rpart = roc(test$Diseased, rpart_pred_prob$`0`)
+roc_rf_default = roc(test$Diseased, default_pred_prob$`0`)
+roc_mtry = roc(test$Diseased, mtry_pred_prob$`0`)
+roc_maxnode = roc(test$Diseased, maxnode_pred_prob$`0`)
+roc_maxtree = roc(test$Diseased, maxtree_pred_prob$`0`)
+
+par(pty="s")
+plot(roc_glm, main = "ROC Curve for all the Models")
+lines(roc_rpart, 'orange')
+lines(roc_rf_default, 'magenta')
+lines(roc_mtry, col = 'blue')
+lines(roc_maxnode, col = 'red')
+lines(roc_maxtree, col = 'brown')
+legend(0.35, 0.5, legend=c("GLM", "RPART", "RF-Default", "MTRY", "MaxNodes", "MaxTrees"), 
+       col=c("black", "orange", "magenta", "blue", "red", "brown"), lty=1:2, cex=0.8)
+
+```
+
+
+# Final Results
+
+\
+
+**Below is the list of all Model's Accuracy and we can see that the Model#3 and Model#6 has the better accuracy of 0.7241379** 
+
+\
+
+```{r, echo = TRUE}
+# Print accuracy that we btained from all the Models above
+accuracy_results %>% knitr::kable()
+```
+
+# Conclusion
+
+\
+
+The Random Forest default model **and** Random Forest with n-trees seems to get us the maximum accuracy. There is still a room to improve the accuracy by performing different approaches such as by removing redundant feature method with highly correlated attributes or using Rank Features by Importance method.
+
+<!-- \pagebreak> -->
+
+# Envrionment Used for this Project
+
+\
+
+```{r, echo = TRUE}
+# Show the environment used for this project
+print("Envrionment Information:")
+version
+```

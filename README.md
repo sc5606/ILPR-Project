@@ -31,3 +31,21 @@ Lichman, M. (2013). UCI Machine Learning Repository [http://archive.ics.uci.edu/
 
 ## Inspiration
 Use these patient records to determine which patients have liver disease and which ones do not.
+
+## About this file
+Based on chemical compounds(bilrubin,albumin,protiens,alkaline phosphatase) present in human body and tests like SGOT , SGPT the outcome mentioned whether person is patient ie needs to be diagnosed or not.
+
+###Columns
+###Columns
+#Age 				Age of the patients
+#Gender 			Sex of the patients
+#Total_Bilirubin		Total Billirubin in mg/dL
+#Direct_Bilirubin		Conjugated Billirubin in mg/dL
+#Alkaline_Phosphotase		ALP in IU/L
+#Alamine_Aminotransferase	ALT in IU/L
+#Aspartate_Aminotransferase	AST in IU/L
+#Total_ProtiensTotal 		Proteins g/dL
+#Albumin			Albumin in g/dL
+#Albumin_and_Globulin_Ratio	A/G ratio
+#DatasetLabel 			(patient has liver disease or not)
+
